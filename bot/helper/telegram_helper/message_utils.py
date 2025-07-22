@@ -1,5 +1,6 @@
 from asyncio import sleep
 from pyrogram.errors import FloodWait, FloodPremiumWait
+from pyrogram.enums import ParseMode
 from re import match as re_match
 from time import time
 
@@ -11,7 +12,7 @@ from ..ext_utils.exceptions import TgLinkException
 from ..ext_utils.status_utils import get_readable_message
 
 
-async def send_message(message, text, buttons=None, block=True):
+async def send_message(message, text, buttons=None, parse_mode: ParseMode = None, block=True):
     try:
         return await message.reply(
             text=text,
@@ -19,17 +20,15 @@ async def send_message(message, text, buttons=None, block=True):
             disable_web_page_preview=True,
             disable_notification=True,
             reply_markup=buttons,
+            parse_mode=parse_mode,
         )
     except FloodWait as f:
-        LOGGER.warning(str(f))
         if not block:
             return str(f)
         await sleep(f.value * 1.2)
-        return await send_message(message, text, buttons)
+        return await send_message(message, text, buttons, parse_mode=parse_mode, block=block)
     except Exception as e:
-        LOGGER.error(str(e))
         return str(e)
-
 
 async def edit_message(message, text, buttons=None, block=True):
     try:
