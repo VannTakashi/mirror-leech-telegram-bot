@@ -22,30 +22,44 @@ from ..helper.telegram_helper.message_utils import (
 @new_task
 async def cancel(_, message):
     user_id = message.from_user.id if message.from_user else message.sender_chat.id
-    msg = message.text.split()
-    if len(msg) > 1:
-        gid = msg[1]
-        if len(gid) == 4:
-            multi_tags.discard(gid)
-            return
-        else:
-            task = await get_task_by_gid(gid)
-            if task is None:
-                await send_message(message, f"GID: <code>{gid}</code> Not Found.")
+    text = message.text
+
+    if text.startswith("/cancel_"):
+        gid = text.split("_", 1)[1]
+    else:
+        parts = text.split()
+        if len(parts) < 2:
+            if not message.reply_to_message_id:
+                msg = (
+                    "Reply to an active command message used to start the download,"
+                    f" or send <code>/{BotCommands.CancelTaskCommand[0]} GID</code> to cancel it!"
+                )
+                await send_message(message, msg)
                 return
-    elif reply_to_id := message.reply_to_message_id:
+            gid = None
+        else:
+            gid = parts[1]
+
+    task = None
+
+    if gid and len(gid) == 4:
+        multi_tags.discard(gid)
+        return
+
+    if gid:
+        task = await get_task_by_gid(gid)
+
+    if not task and message.reply_to_message_id:
         async with task_dict_lock:
-            task = task_dict.get(reply_to_id)
-        if task is None:
+            task = task_dict.get(message.reply_to_message_id)
+        if not task:
             await send_message(message, "This is not an active task!")
             return
-    elif len(msg) == 1:
-        msg = (
-            "Reply to an active Command message which was used to start the download"
-            f" or send <code>/{BotCommands.CancelTaskCommand[0]} GID</code> to cancel it!"
-        )
-        await send_message(message, msg)
+
+    if not task:
+        await send_message(message, f"GID: <code>{gid}</code> Not Found.")
         return
+
     if (
         Config.OWNER_ID != user_id
         and task.listener.user_id != user_id
@@ -53,9 +67,9 @@ async def cancel(_, message):
     ):
         await send_message(message, "This task is not for you!")
         return
+
     obj = task.task()
     await obj.cancel_task()
-
 
 @new_task
 async def cancel_multi(_, query):
